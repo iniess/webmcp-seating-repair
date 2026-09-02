@@ -6,7 +6,7 @@
   "description": "A shared seating chart that humans and browser agents can repair together through WebMCP.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build --emptyOutDir",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:compile": "node --eval \"require('node:fs').rmSync('.test-dist', { recursive: true, force: true })\" && tsc -p tsconfig.test.json",
