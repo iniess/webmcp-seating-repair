@@ -59,6 +59,7 @@ export type ViolationCode =
   | "UNSEATED_GUEST"
   | "UNKNOWN_TABLE"
   | "TABLE_OVER_CAPACITY"
+  | "INVALID_CONSTRAINT"
   | "TOGETHER_CONSTRAINT"
   | "APART_CONSTRAINT"
   | "FIXED_TABLE_CONSTRAINT"
@@ -71,6 +72,14 @@ export interface Violation {
   guestIds: GuestId[];
   constraintId?: ConstraintId;
   tableId?: TableId;
+}
+
+export interface ValidationSummary {
+  valid: boolean;
+  unseatedCount: number;
+  overCapacityTableIds: TableId[];
+  constraintViolationCount: number;
+  violations: Violation[];
 }
 
 export type ActivityActor = "human" | "agent" | "system";

@@ -18,8 +18,27 @@ export function solveSeatingPlan(
   options: Partial<RepairOptions> = {}
 ): SolverResult {
   const resolvedOptions: RepairOptions = { ...DEFAULT_OPTIONS, ...options };
+  if (resolvedOptions.signal?.aborted) {
+    return { assignments: null, exploredNodes: 0, reason: "ABORTED" };
+  }
+
   const tableIds = state.tables.map((table) => table.id);
   const tableById = new Map(state.tables.map((table) => [table.id, table]));
+  const guestIds = state.guests.map((guest) => guest.id);
+  const guestIdSet = new Set(guestIds);
+
+  if (
+    guestIdSet.size !== guestIds.length ||
+    tableById.size !== tableIds.length ||
+    state.tables.some(
+      (table) => !Number.isSafeInteger(table.capacity) || table.capacity < 0
+    ) ||
+    state.tables.reduce((total, table) => total + table.capacity, 0) <
+      state.guests.length
+  ) {
+    return { assignments: null, exploredNodes: 0, reason: "UNSATISFIABLE" };
+  }
+
   const lockedGuestIds = new Set(state.lockedGuestIds);
   const fixedTableByGuest = new Map<GuestId, TableId>();
   const accessibleGuestIds = new Set<GuestId>();
@@ -31,18 +50,39 @@ export function solveSeatingPlan(
 
   for (const constraint of state.constraints) {
     if (constraint.type === "fixed_table") {
+      if (
+        !guestIdSet.has(constraint.guestId) ||
+        !tableById.has(constraint.tableId)
+      ) {
+        return { assignments: null, exploredNodes: 0, reason: "UNSATISFIABLE" };
+      }
+
+      const existingFixedTableId = fixedTableByGuest.get(constraint.guestId);
+      if (existingFixedTableId && existingFixedTableId !== constraint.tableId) {
+        return { assignments: null, exploredNodes: 0, reason: "UNSATISFIABLE" };
+      }
+
       fixedTableByGuest.set(constraint.guestId, constraint.tableId);
       relationDegree.set(
         constraint.guestId,
         (relationDegree.get(constraint.guestId) ?? 0) + 2
       );
     } else if (constraint.type === "accessible_table") {
+      if (!guestIdSet.has(constraint.guestId)) {
+        return { assignments: null, exploredNodes: 0, reason: "UNSATISFIABLE" };
+      }
       accessibleGuestIds.add(constraint.guestId);
       relationDegree.set(
         constraint.guestId,
         (relationDegree.get(constraint.guestId) ?? 0) + 1
       );
     } else {
+      if (
+        constraint.guestIds[0] === constraint.guestIds[1] ||
+        constraint.guestIds.some((guestId) => !guestIdSet.has(guestId))
+      ) {
+        return { assignments: null, exploredNodes: 0, reason: "UNSATISFIABLE" };
+      }
       for (const guestId of constraint.guestIds) {
         relationDegree.set(guestId, (relationDegree.get(guestId) ?? 0) + 1);
       }
@@ -69,8 +109,10 @@ export function solveSeatingPlan(
     }
 
     candidates.sort((left, right) => {
-      if (left === currentTableId && right !== currentTableId) return -1;
-      if (right === currentTableId && left !== currentTableId) return 1;
+      if (resolvedOptions.preserveCurrentAssignments) {
+        if (left === currentTableId && right !== currentTableId) return -1;
+        if (right === currentTableId && left !== currentTableId) return 1;
+      }
       return tableIds.indexOf(left) - tableIds.indexOf(right);
     });
 

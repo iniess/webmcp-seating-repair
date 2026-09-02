@@ -1,15 +1,16 @@
 {
   "name": "webmcp-seating-repair",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "A shared seating chart that humans and browser agents can repair together through WebMCP.",
   "scripts": {
     "dev": "vite",
-    "build": "npm run typecheck && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test tests/*.test.mjs",
+    "test:compile": "node --eval \"require('node:fs').rmSync('.test-dist', { recursive: true, force: true })\" && tsc -p tsconfig.test.json",
+    "test": "npm run test:compile && node --test tests/*.test.mjs",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "keywords": [
@@ -17,9 +18,13 @@
     "human-agent-collaboration",
     "seating-chart"
   ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "license": "MIT",
   "devDependencies": {
     "typescript": "^7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "webmcp-types": "^0.1.5"
   }
 }

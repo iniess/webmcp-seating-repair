@@ -36,16 +36,19 @@ Hoàn thiện `Seating Repair` thành một submission WebMCP nhỏ, ổn địn
 
 Không thêm tool mới nếu chưa chứng minh tool đó làm demo rõ hơn.
 
-## Việc cần hoàn thiện tiếp
+## Trạng thái triển khai
 
-- Cài dependency và tạo `package-lock.json`.
-- Chạy typecheck, tests và production build; sửa toàn bộ lỗi.
-- Soát solver với edge cases và bảo đảm thời gian chạy tức thì cho fixture demo.
-- Test thật trong ChatGPT in-app browser và Chrome WebMCP.
-- Tinh chỉnh UI cho video 16:9, ưu tiên trạng thái trước/sau rõ ràng.
-- Bổ sung test cho revision guard, duplicate constraints và no-mutation khi unsatisfiable.
-- Deploy static app.
-- Hoàn thiện README, Devpost description và video script sau khi product flow đã ổn định.
+- Dependency đã được khóa trong `package-lock.json`.
+- Typecheck, 23 automated tests và production build chạy chung qua `npm run check`.
+- Solver đã có test cho deterministic minimum-move repair, locks, cancellation,
+  invalid constraints và unsatisfiable state.
+- Store đã có test cho revision guard, duplicate constraints, persistence lỗi và
+  no-mutation khi repair thất bại.
+- WebMCP đã có test đăng ký đúng bốn tools và chạy trọn collaboration flow.
+- README và `SUBMISSION.md` chứa hướng dẫn demo, Devpost copy và video script.
+
+Khi bảo trì, không thay đổi fixture hoặc prompt demo mà không chạy lại toàn bộ flow
+agent → human move/lock → agent repair. Không tăng scope chỉ để thêm CRUD hoặc UI phụ.
 
 ## Definition of done
 

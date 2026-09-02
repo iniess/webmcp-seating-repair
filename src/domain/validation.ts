@@ -3,6 +3,7 @@ import type {
   GuestId,
   SeatingState,
   TableId,
+  ValidationSummary,
   Violation
 } from "../types.js";
 
@@ -77,6 +78,23 @@ function validateConstraint(
 ): void {
   if (constraint.type === "together" || constraint.type === "apart") {
     const [firstGuestId, secondGuestId] = constraint.guestIds;
+    const missingGuestIds = constraint.guestIds.filter(
+      (guestId) => !guestById.has(guestId)
+    );
+    if (missingGuestIds.length > 0 || firstGuestId === secondGuestId) {
+      violations.push({
+        id: `constraint:${constraint.id}`,
+        code: "INVALID_CONSTRAINT",
+        message:
+          missingGuestIds.length > 0
+            ? `${constraint.label} references an unknown guest`
+            : `${constraint.label} must reference two different guests`,
+        guestIds: [...constraint.guestIds],
+        constraintId: constraint.id
+      });
+      return;
+    }
+
     const firstTableId = assignedTable(state, firstGuestId);
     const secondTableId = assignedTable(state, secondGuestId);
 
@@ -111,6 +129,21 @@ function validateConstraint(
   }
 
   if (constraint.type === "fixed_table") {
+    if (
+      !guestById.has(constraint.guestId) ||
+      !tableById.has(constraint.tableId)
+    ) {
+      violations.push({
+        id: `constraint:${constraint.id}`,
+        code: "INVALID_CONSTRAINT",
+        message: `${constraint.label} references an unknown guest or table`,
+        guestIds: [constraint.guestId],
+        constraintId: constraint.id,
+        tableId: constraint.tableId
+      });
+      return;
+    }
+
     const actualTableId = assignedTable(state, constraint.guestId);
     if (actualTableId === constraint.tableId) {
       return;
@@ -130,12 +163,26 @@ function validateConstraint(
     return;
   }
 
+  if (!guestById.has(constraint.guestId)) {
+    violations.push({
+      id: `constraint:${constraint.id}`,
+      code: "INVALID_CONSTRAINT",
+      message: `${constraint.label} references an unknown guest`,
+      guestIds: [constraint.guestId],
+      constraintId: constraint.id
+    });
+    return;
+  }
+
   const tableId = assignedTable(state, constraint.guestId);
   if (tableId === null) {
     return;
   }
 
   const table = tableById.get(tableId);
+  if (!table) {
+    return;
+  }
   if (table?.accessible) {
     return;
   }
@@ -153,4 +200,26 @@ function validateConstraint(
 
 export function isPlanValid(state: SeatingState): boolean {
   return validateSeatingPlan(state).length === 0;
+}
+
+export function summarizeValidation(violations: Violation[]): ValidationSummary {
+  return {
+    valid: violations.length === 0,
+    unseatedCount: violations.filter(
+      (violation) => violation.code === "UNSEATED_GUEST"
+    ).length,
+    overCapacityTableIds: [
+      ...new Set(
+        violations.flatMap((violation) =>
+          violation.code === "TABLE_OVER_CAPACITY" && violation.tableId
+            ? [violation.tableId]
+            : []
+        )
+      )
+    ],
+    constraintViolationCount: violations.filter(
+      (violation) => violation.constraintId !== undefined
+    ).length,
+    violations
+  };
 }

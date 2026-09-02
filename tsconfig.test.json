@@ -4,6 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022", "DOM"],
+    "types": ["webmcp-types"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -14,6 +15,8 @@
   "include": [
     "src/types.ts",
     "src/data/**/*.ts",
-    "src/domain/**/*.ts"
+    "src/domain/**/*.ts",
+    "src/state/**/*.ts",
+    "src/webmcp/**/*.ts"
   ]
 }

@@ -14,17 +14,26 @@ const EMPTY_OBJECT_SCHEMA = {
   additionalProperties: false
 } as const;
 
+const REVISION_SCHEMA = {
+  type: "integer",
+  minimum: 0,
+  maximum: Number.MAX_SAFE_INTEGER,
+  description: "The exact revision returned by get_seating_state."
+} as const;
+
 const CONSTRAINT_SCHEMA = {
   oneOf: [
     {
       type: "object",
       properties: {
-        type: { const: "together" },
+        type: { const: "together", description: "Seat both guests at one table." },
         guestIds: {
           type: "array",
           items: { type: "string" },
           minItems: 2,
-          maxItems: 2
+          maxItems: 2,
+          uniqueItems: true,
+          description: "Two different guest IDs from get_seating_state."
         }
       },
       required: ["type", "guestIds"],
@@ -33,12 +42,14 @@ const CONSTRAINT_SCHEMA = {
     {
       type: "object",
       properties: {
-        type: { const: "apart" },
+        type: { const: "apart", description: "Seat both guests at different tables." },
         guestIds: {
           type: "array",
           items: { type: "string" },
           minItems: 2,
-          maxItems: 2
+          maxItems: 2,
+          uniqueItems: true,
+          description: "Two different guest IDs from get_seating_state."
         }
       },
       required: ["type", "guestIds"],
@@ -47,9 +58,9 @@ const CONSTRAINT_SCHEMA = {
     {
       type: "object",
       properties: {
-        type: { const: "fixed_table" },
-        guestId: { type: "string" },
-        tableId: { type: "string" }
+        type: { const: "fixed_table", description: "Require one guest at one table." },
+        guestId: { type: "string", description: "A guest ID from get_seating_state." },
+        tableId: { type: "string", description: "A table ID from get_seating_state." }
       },
       required: ["type", "guestId", "tableId"],
       additionalProperties: false
@@ -57,8 +68,11 @@ const CONSTRAINT_SCHEMA = {
     {
       type: "object",
       properties: {
-        type: { const: "accessible_table" },
-        guestId: { type: "string" }
+        type: {
+          const: "accessible_table",
+          description: "Require an accessible table for one guest."
+        },
+        guestId: { type: "string", description: "A guest ID from get_seating_state." }
       },
       required: ["type", "guestId"],
       additionalProperties: false
@@ -69,7 +83,8 @@ const CONSTRAINT_SCHEMA = {
 export async function registerWebMcpTools(
   store: SeatingStore
 ): Promise<WebMcpRegistrationStatus> {
-  const modelContext = document.modelContext;
+  const modelContext =
+    typeof document === "undefined" ? undefined : document.modelContext;
   if (!modelContext || typeof modelContext.registerTool !== "function") {
     return {
       supported: false,
@@ -90,10 +105,11 @@ export async function registerWebMcpTools(
           "Read the current guests, tables, assignments, locked guests, hard constraints, violations, and revision. This tool is read-only and should be called before any write tool.",
         inputSchema: EMPTY_OBJECT_SCHEMA,
         annotations: { readOnlyHint: true, untrustedContentHint: false },
-        execute: async (input) => {
-          requirePlainObject(input);
-          return { ok: true, state: store.getPublicSnapshot() };
-        }
+        execute: async (input) =>
+          executeSafely(() => {
+            requirePlainObject(input, []);
+            return { ok: true, state: store.getPublicSnapshot() };
+          })
       },
       { signal: controller.signal }
     );
@@ -107,12 +123,13 @@ export async function registerWebMcpTools(
         inputSchema: {
           type: "object",
           properties: {
-            expectedRevision: { type: "integer", minimum: 0 },
+            expectedRevision: REVISION_SCHEMA,
             constraints: {
               type: "array",
               items: CONSTRAINT_SCHEMA,
               minItems: 1,
-              maxItems: 12
+              maxItems: 12,
+              description: "One to twelve validated hard seating constraints."
             }
           },
           required: ["expectedRevision", "constraints"],
@@ -140,9 +157,19 @@ export async function registerWebMcpTools(
         inputSchema: {
           type: "object",
           properties: {
-            expectedRevision: { type: "integer", minimum: 0 },
-            respectLocks: { type: "boolean", default: true },
-            preserveCurrentAssignments: { type: "boolean", default: true }
+            expectedRevision: REVISION_SCHEMA,
+            respectLocks: {
+              type: "boolean",
+              const: true,
+              default: true,
+              description:
+                "Must be true. Unlock a guest in the page before allowing the agent to move them."
+            },
+            preserveCurrentAssignments: {
+              type: "boolean",
+              default: true,
+              description: "Minimize moves among guests who are not locked."
+            }
           },
           required: ["expectedRevision"],
           additionalProperties: false
@@ -170,10 +197,11 @@ export async function registerWebMcpTools(
           "Check the current live seating board for unseated guests, capacity problems, and hard-constraint violations. This tool is read-only and does not change page state.",
         inputSchema: EMPTY_OBJECT_SCHEMA,
         annotations: { readOnlyHint: true, untrustedContentHint: false },
-        execute: async (input) => {
-          requirePlainObject(input);
-          return { ok: true, ...store.validate() };
-        }
+        execute: async (input) =>
+          executeSafely(() => {
+            requirePlainObject(input, []);
+            return { ok: true, ...store.validate() };
+          })
       },
       { signal: controller.signal }
     );
@@ -199,10 +227,14 @@ function parseAddConstraintsInput(input: unknown): {
   expectedRevision: number;
   constraints: ConstraintDraft[];
 } {
-  const record = requirePlainObject(input);
+  const record = requirePlainObject(input, ["expectedRevision", "constraints"]);
   const expectedRevision = requireRevision(record.expectedRevision);
-  if (!Array.isArray(record.constraints) || record.constraints.length === 0) {
-    throw new Error("constraints must be a non-empty array");
+  if (
+    !Array.isArray(record.constraints) ||
+    record.constraints.length === 0 ||
+    record.constraints.length > 12
+  ) {
+    throw new Error("constraints must contain between 1 and 12 items");
   }
 
   return {
@@ -215,15 +247,20 @@ function parseConstraintDraft(input: unknown): ConstraintDraft {
   const record = requirePlainObject(input);
 
   if (record.type === "together" || record.type === "apart") {
+    requireOnlyKeys(record, ["type", "guestIds"]);
     if (!Array.isArray(record.guestIds) || record.guestIds.length !== 2) {
       throw new Error(`${record.type}.guestIds must contain exactly two guest IDs`);
     }
     const firstGuestId = requireString(record.guestIds[0], "guestIds[0]");
     const secondGuestId = requireString(record.guestIds[1], "guestIds[1]");
+    if (firstGuestId === secondGuestId) {
+      throw new Error(`${record.type}.guestIds must contain two different guest IDs`);
+    }
     return { type: record.type, guestIds: [firstGuestId, secondGuestId] };
   }
 
   if (record.type === "fixed_table") {
+    requireOnlyKeys(record, ["type", "guestId", "tableId"]);
     return {
       type: "fixed_table",
       guestId: requireString(record.guestId, "guestId"),
@@ -232,6 +269,7 @@ function parseConstraintDraft(input: unknown): ConstraintDraft {
   }
 
   if (record.type === "accessible_table") {
+    requireOnlyKeys(record, ["type", "guestId"]);
     return {
       type: "accessible_table",
       guestId: requireString(record.guestId, "guestId")
@@ -246,10 +284,14 @@ function parseRepairInput(input: unknown): {
   respectLocks: boolean;
   preserveCurrentAssignments: boolean;
 } {
-  const record = requirePlainObject(input);
+  const record = requirePlainObject(input, [
+    "expectedRevision",
+    "respectLocks",
+    "preserveCurrentAssignments"
+  ]);
   return {
     expectedRevision: requireRevision(record.expectedRevision),
-    respectLocks: requireOptionalBoolean(record.respectLocks, true, "respectLocks"),
+    respectLocks: requireRespectLocks(record.respectLocks),
     preserveCurrentAssignments: requireOptionalBoolean(
       record.preserveCurrentAssignments,
       true,
@@ -258,17 +300,40 @@ function parseRepairInput(input: unknown): {
   };
 }
 
-function requirePlainObject(value: unknown): Record<string, unknown> {
+function requireRespectLocks(value: unknown): true {
+  if (value === undefined || value === true) return true;
+  throw new Error(
+    "respectLocks cannot be false; unlock the guest in the page before repairing"
+  );
+}
+
+function requirePlainObject(
+  value: unknown,
+  allowedKeys?: readonly string[]
+): Record<string, unknown> {
   if (value === undefined) return {};
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("Tool input must be an object");
   }
-  return value as Record<string, unknown>;
+  const record = value as Record<string, unknown>;
+  if (allowedKeys) requireOnlyKeys(record, allowedKeys);
+  return record;
+}
+
+function requireOnlyKeys(
+  record: Record<string, unknown>,
+  allowedKeys: readonly string[]
+): void {
+  const allowed = new Set(allowedKeys);
+  const unexpected = Object.keys(record).filter((key) => !allowed.has(key));
+  if (unexpected.length > 0) {
+    throw new Error(`Unexpected input field${unexpected.length === 1 ? "" : "s"}: ${unexpected.join(", ")}`);
+  }
 }
 
 function requireRevision(value: unknown): number {
-  if (!Number.isInteger(value) || (value as number) < 0) {
-    throw new Error("expectedRevision must be a non-negative integer");
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new Error("expectedRevision must be a non-negative safe integer");
   }
   return value as number;
 }
@@ -277,7 +342,7 @@ function requireString(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${field} must be a non-empty string`);
   }
-  return value;
+  return value.trim();
 }
 
 function requireOptionalBoolean(
