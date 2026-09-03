@@ -1,14 +1,14 @@
 # Seating Repair
 
-**A shared seating chart that agents can repair without overriding human choices.**
+**Repair constrained plans with AI—without overriding human decisions.**
 
-Seating Repair is a one-page WebMCP demo for human-agent collaboration. A person
-can move and lock important guests on the live board. A browser agent reads that
-same state, adds hard constraints, repairs the remaining assignments, and validates
-the result.
+Seating Repair is a WebMCP application for constrained allocation and minimal-disruption repair. It uses seating as a simple visual example of a much broader problem: assigning people or other entities to limited resources while respecting capacity, relationships, eligibility rules, existing commitments, and live human decisions.
 
-The app is intentionally small: no backend, account, embedded chatbot, external API,
-or hidden server state. The page is the source of truth.
+The demo focuses on seating because the constraints are immediately visible. Guests can need to stay together or apart, require an accessible table, be fixed to a specific table, or be locked in place by a person. When something changes, the goal is not to generate a completely new plan from scratch, but to repair the current one while preserving as much of it as possible.
+
+A person and a browser agent work on the same live board. The person can move and lock important guests directly in the UI. Through WebMCP, the agent reads that same state, adds hard constraints, repairs the remaining assignments, and validates the result.
+
+Everything runs in the browser with no backend, account, embedded chatbot, external API, or hidden agent state. The page itself remains the source of truth.
 
 ## Why WebMCP
 
@@ -37,8 +37,8 @@ Exactly four tools are registered imperatively on the top-level document:
 | `validate_seating_plan` | Read-only | Reports unseated guests, over-capacity tables, constraint violations, and overall validity. |
 
 Every schema rejects additional properties, and every input is validated again at
-runtime. Tool registration and in-flight repair support cancellation through
-`AbortSignal`.
+runtime. Tool registration lifecycle is scoped with `AbortSignal`, and repair fails
+without committing when invoked with an aborted signal.
 
 ## Safety and consistency
 
