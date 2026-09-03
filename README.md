@@ -1,6 +1,6 @@
 # Seating Repair
 
-**Repair constrained plans with AI—without overriding human decisions.**
+**Repair constrained plans with AI - without overriding human decisions.**
 
 Seating Repair is a WebMCP application for constrained allocation and minimal-disruption repair. It uses seating as a simple visual example of a much broader problem: assigning people or other entities to limited resources while respecting capacity, relationships, eligibility rules, existing commitments, and live human decisions.
 
