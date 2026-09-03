@@ -71,11 +71,15 @@ export class AppView {
 
         <header class="topbar">
           <div>
-            <p class="eyebrow">OPENAI WEBMCP CHALLENGE</p>
+            <p class="eyebrow">HUMAN + AGENT WORKSPACE</p>
             <h1>Seating Repair</h1>
             <p class="subtitle">People choose the exceptions. Agents repair everything around them.</p>
           </div>
           <div class="topbar-actions">
+            <span class="status-pill status-pill--local" title="This board is stored only in this browser profile.">
+              <span class="status-dot" aria-hidden="true"></span>
+              Saved in this browser
+            </span>
             <span class="status-pill ${connectionClass}" title="${escapeHtml(this.webMcpStatus.message)}">
               <span class="status-dot" aria-hidden="true"></span>
               ${escapeHtml(this.webMcpStatus.message)}
@@ -386,10 +390,10 @@ export class AppView {
       element.animate(
         [
           {
-            transform: `translate(${deltaX}px, ${deltaY}px)`,
+            translate: `${deltaX}px ${deltaY}px`,
             boxShadow: "0 10px 24px rgba(42, 72, 56, 0.22)"
           },
-          { transform: "translate(0, 0)", boxShadow: "0 0 0 rgba(0, 0, 0, 0)" }
+          { translate: "0 0", boxShadow: "0 0 0 rgba(0, 0, 0, 0)" }
         ],
         { duration: 420, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
       );
