@@ -50,6 +50,9 @@ runtime. Tool registration and in-flight repair support cancellation through
   runs against the same state produce the same result.
 - **Fail-closed persistence:** malformed `localStorage` data is ignored and reset to
   the known demo fixture.
+- **Browser-local state:** the board is stored under this site's origin in the
+  current browser profile. It is not shared between visitors or synced to a
+  ChatGPT account.
 - **No network data path:** all application logic runs in the browser.
 
 ## Run locally
